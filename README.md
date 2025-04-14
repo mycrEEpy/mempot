@@ -23,9 +23,14 @@ func main() {
 	
 	cache.Set("foo", "bar")
 	
-	data, ok := cache.Get("foo").Data.(string)
+	item, ok := cache.Get("foo").Data.(string)
 	if !ok {
-		panic("data was not a string")
+		panic("item not found or expired")
+	}
+
+	data, ok := item.Data.(string)
+	if !ok {
+		panic("item data is not a string")
 	}
 	
 	fmt.Println(data)
