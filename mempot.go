@@ -103,6 +103,13 @@ func (c *Cache) Delete(key string) {
 	c.mut.Unlock()
 }
 
+// DeleteAll removes all Items from the Cache.
+func (c *Cache) DeleteAll() {
+	c.mut.Lock()
+	c.data = make(map[string]Item)
+	c.mut.Unlock()
+}
+
 // Cancel will cancel the default Context of the Cache which stops the cleanup ticker.
 // This only has an effect when the Cache has not been created with a custom context.
 func (c *Cache) Cancel() {

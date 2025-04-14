@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-func TestCache(t *testing.T) {
-	const key = "foo"
-	const data = "bar"
+const key = "foo"
+const data = "bar"
 
+func TestCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cache := New(WithDefaultTTL(30*time.Second), WithCleanupInterval(4*time.Second), WithContext(ctx))
@@ -44,6 +44,14 @@ func TestCache(t *testing.T) {
 	_, ok = cache.Get(key)
 	if ok {
 		t.Error("item still exists after delete")
+	}
+
+	cache.Set(key, data)
+	cache.DeleteAll()
+
+	_, ok = cache.Get(key)
+	if ok {
+		t.Error("item still exists after delete all")
 	}
 
 	cancel()
