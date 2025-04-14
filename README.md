@@ -26,7 +26,7 @@ func main() {
 	data, ok := cache.Get("foo").Data.(string)
 	if !ok {
 		panic("data was not a string")
-    }
+	}
 	
 	fmt.Println(data)
 }
