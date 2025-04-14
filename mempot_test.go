@@ -10,7 +10,9 @@ func TestCache(t *testing.T) {
 	const key = "foo"
 	const data = "bar"
 
-	cache := New(WithDefaultTTL(30*time.Second), WithCleanupInterval(4*time.Second), WithContext(context.Background()))
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cache := New(WithDefaultTTL(30*time.Second), WithCleanupInterval(4*time.Second), WithContext(ctx))
 
 	cache.SetWithTTL(key, "bar", 2*time.Second)
 
@@ -43,4 +45,9 @@ func TestCache(t *testing.T) {
 	if ok {
 		t.Error("item still exists after delete")
 	}
+
+	cancel()
+	cache.Cancel()
+
+	time.Sleep(1 * time.Second)
 }
