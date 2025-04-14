@@ -23,7 +23,7 @@ func main() {
 	
 	cache.Set("foo", "bar")
 	
-	item, ok := cache.Get("foo").Data.(string)
+	item, ok := cache.Get("foo")
 	if !ok {
 		panic("item not found or expired")
 	}
