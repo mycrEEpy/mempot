@@ -15,7 +15,7 @@ package main
 import (
 	"fmt"
 	
-	"github.com/myceepy/mempot"
+	"github.com/mycreepy/mempot"
 )
 
 func main() {
