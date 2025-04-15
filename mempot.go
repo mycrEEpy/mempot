@@ -2,6 +2,7 @@ package mempot
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -22,6 +23,11 @@ type Cache struct {
 type Item struct {
 	Data any
 	TTL  int64
+}
+
+// Expired returns true if the data of the Item has expired.
+func (i *Item) Expired() bool {
+	return time.Now().Unix() > i.TTL
 }
 
 // Option can alter the behavior of a Cache.
@@ -89,11 +95,38 @@ func (c *Cache) Get(key string) (Item, bool) {
 	item, ok := c.data[key]
 	c.mut.RUnlock()
 
-	if time.Now().Unix() > item.TTL {
+	if item.Expired() {
 		return Item{}, false
 	}
 
 	return item, ok
+}
+
+// QueryFunc is a function to retrieve data which will be put into the Cache.
+type QueryFunc func(key string) (any, error)
+
+// Remember tries to get the Item from the Cache, if the Item is not found or expired QueryFunc is called
+// to retrieve the data from source and put it into the Cache.
+func (c *Cache) Remember(key string, query QueryFunc) (Item, error) {
+	return c.RememberWithTTL(key, query, c.defaultTTL)
+}
+
+// RememberWithTTL tries to get the Item from the Cache, if the Item is not found or expired QueryFunc is called
+// to retrieve the data from source and put it into the Cache with the given time-to-live.
+func (c *Cache) RememberWithTTL(key string, query QueryFunc, ttl time.Duration) (Item, error) {
+	item, ok := c.Get(key)
+	if ok {
+		return item, nil
+	}
+
+	data, err := query(key)
+	if err != nil {
+		return Item{}, fmt.Errorf("failed to query data: %w", err)
+	}
+
+	c.SetWithTTL(key, data, ttl)
+
+	return Item{Data: data, TTL: time.Now().Add(c.defaultTTL).Unix()}, nil
 }
 
 // Delete removes an Item from the Cache.
@@ -103,8 +136,8 @@ func (c *Cache) Delete(key string) {
 	c.mut.Unlock()
 }
 
-// DeleteAll removes all Items from the Cache.
-func (c *Cache) DeleteAll() {
+// Reset removes all Items from the Cache.
+func (c *Cache) Reset() {
 	c.mut.Lock()
 	c.data = make(map[string]Item)
 	c.mut.Unlock()
@@ -125,13 +158,11 @@ func (c *Cache) cleanup() {
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			now := time.Now().Unix()
-
 			toBeDeleted := make([]string, 0)
 
 			c.mut.RLock()
 			for key, item := range c.data {
-				if now > item.TTL {
+				if item.Expired() {
 					toBeDeleted = append(toBeDeleted, key)
 				}
 			}

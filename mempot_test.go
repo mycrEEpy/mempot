@@ -47,11 +47,18 @@ func TestCache(t *testing.T) {
 	}
 
 	cache.Set(key, data)
-	cache.DeleteAll()
+	cache.Reset()
 
 	_, ok = cache.Get(key)
 	if ok {
 		t.Error("item still exists after delete all")
+	}
+
+	_, err := cache.RememberWithTTL(key, func(key string) (any, error) {
+		return data, nil
+	}, 3*time.Second)
+	if err != nil {
+		t.Errorf("failed to remember item: %s", err)
 	}
 
 	cancel()
