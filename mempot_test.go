@@ -2,6 +2,7 @@ package mempot
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -54,9 +55,16 @@ func TestCache(t *testing.T) {
 		t.Error("item still exists after delete all")
 	}
 
-	_, err := cache.RememberWithTTL(key, func(key string) (any, error) {
+	_, err := cache.Remember(key, func(key string) (any, error) {
+		return nil, errors.New("data not available")
+	})
+	if err == nil {
+		t.Error("QueryFunc failed but Remember did not return an error")
+	}
+
+	_, err = cache.Remember(key, func(key string) (any, error) {
 		return data, nil
-	}, 3*time.Second)
+	})
 	if err != nil {
 		t.Errorf("failed to remember item: %s", err)
 	}
