@@ -27,9 +27,8 @@ type Cache[K comparable, T any] struct {
 	mut  sync.RWMutex
 	data map[K]Item[T]
 
-	ctx             context.Context
-	defaultTTL      time.Duration
-	cleanupInterval time.Duration
+	ctx context.Context
+	cfg Config
 }
 
 // Item is a unit of typed data which can be cached and has an expiration as Unix epoch.
@@ -47,18 +46,17 @@ func (i *Item[T]) Expired() bool {
 // If the context is canceled, the Cache will stop the cleanup goroutine.
 func NewCache[K comparable, T any](ctx context.Context, cfg Config) *Cache[K, T] {
 	c := &Cache[K, T]{
-		data:            make(map[K]Item[T]),
-		ctx:             ctx,
-		defaultTTL:      DefaultConfig.DefaultTTL,
-		cleanupInterval: DefaultConfig.CleanupInterval,
+		data: make(map[K]Item[T]),
+		ctx:  ctx,
+		cfg:  DefaultConfig,
 	}
 
 	if cfg.DefaultTTL > 0 {
-		c.defaultTTL = cfg.DefaultTTL
+		c.cfg.DefaultTTL = cfg.DefaultTTL
 	}
 
 	if cfg.CleanupInterval > 0 {
-		c.cleanupInterval = cfg.CleanupInterval
+		c.cfg.CleanupInterval = cfg.CleanupInterval
 	}
 
 	go c.cleanup()
@@ -68,7 +66,7 @@ func NewCache[K comparable, T any](ctx context.Context, cfg Config) *Cache[K, T]
 
 // Set will add an Item to the Cache with the default time-to-live.
 func (c *Cache[K, T]) Set(key K, value T) {
-	c.SetWithTTL(key, value, c.defaultTTL)
+	c.SetWithTTL(key, value, c.cfg.DefaultTTL)
 }
 
 // SetWithTTL will add an Item to the Cache with the given time-to-live.
@@ -98,7 +96,7 @@ type QueryFunc[K comparable, T any] func(key K) (T, error)
 // Remember tries to get the Item from the Cache, if the Item is not found or expired QueryFunc is called
 // to retrieve the data from source and put it into the Cache.
 func (c *Cache[K, T]) Remember(key K, query QueryFunc[K, T]) (Item[T], error) {
-	return c.RememberWithTTL(key, query, c.defaultTTL)
+	return c.RememberWithTTL(key, query, c.cfg.DefaultTTL)
 }
 
 // RememberWithTTL tries to get the Item from the Cache, if the Item is not found or expired QueryFunc is called
@@ -116,7 +114,7 @@ func (c *Cache[K, T]) RememberWithTTL(key K, query QueryFunc[K, T], ttl time.Dur
 
 	c.SetWithTTL(key, data, ttl)
 
-	return Item[T]{Data: data, TTL: time.Now().Add(c.defaultTTL).Unix()}, nil
+	return Item[T]{Data: data, TTL: time.Now().Add(c.cfg.DefaultTTL).Unix()}, nil
 }
 
 // Delete removes an Item from the Cache.
@@ -134,7 +132,7 @@ func (c *Cache[K, T]) Reset() {
 }
 
 func (c *Cache[K, T]) cleanup() {
-	ticker := time.NewTicker(c.cleanupInterval)
+	ticker := time.NewTicker(c.cfg.CleanupInterval)
 
 	for {
 		select {
