@@ -7,10 +7,21 @@ import (
 	"time"
 )
 
+// Config allows to alter the configuration of a Cache.
+//
+// Context is by default an empty background context.
+// DefaultTTL is by default 15 minutes.
+// CleanupInterval is by default 5 minutes.
+type Config struct {
+	Context         context.Context
+	DefaultTTL      time.Duration
+	CleanupInterval time.Duration
+}
+
 // Cache holds the data you want to cache in memory.
-type Cache struct {
+type Cache[K comparable, T any] struct {
 	mut  sync.RWMutex
-	data map[string]Item
+	data map[K]Item[T]
 
 	defaultTTL      time.Duration
 	cleanupInterval time.Duration
@@ -19,32 +30,37 @@ type Cache struct {
 	cancel context.CancelFunc
 }
 
-// Item is a unit of data which can be cached and has an expiration as Unix epoch.
-type Item struct {
-	Data any
+// Item is a unit of typed data which can be cached and has an expiration as Unix epoch.
+type Item[T any] struct {
+	Data T
 	TTL  int64
 }
 
 // Expired returns true if the data of the Item has expired.
-func (i *Item) Expired() bool {
+func (i *Item[T]) Expired() bool {
 	return time.Now().Unix() > i.TTL
 }
 
-// Option can alter the behavior of a Cache.
-type Option func(*Cache)
-
-// New create a new Cache instance.
-func New(opts ...Option) *Cache {
-	c := &Cache{
-		data:            make(map[string]Item),
+// NewCache create a new Cache instance with K as key and T as data.
+func NewCache[K comparable, T any](cfg Config) *Cache[K, T] {
+	c := &Cache[K, T]{
+		data:            make(map[K]Item[T]),
 		defaultTTL:      time.Minute * 15,
 		cleanupInterval: time.Minute * 5,
 	}
 
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 
-	for _, opt := range opts {
-		opt(c)
+	if cfg.Context != nil {
+		c.ctx = cfg.Context
+	}
+
+	if cfg.DefaultTTL > 0 {
+		c.defaultTTL = cfg.DefaultTTL
+	}
+
+	if cfg.CleanupInterval > 0 {
+		c.cleanupInterval = cfg.CleanupInterval
 	}
 
 	go c.cleanup()
@@ -52,68 +68,44 @@ func New(opts ...Option) *Cache {
 	return c
 }
 
-// WithDefaultTTL changes the default time-to-live for an Item in the Cache.
-// Default is 15m.
-func WithDefaultTTL(ttl time.Duration) Option {
-	return func(c *Cache) {
-		c.defaultTTL = ttl
-	}
-}
-
-// WithCleanupInterval changes the default interval at which expired Items are removed from the Cache.
-// Default is 5m.
-func WithCleanupInterval(interval time.Duration) Option {
-	return func(c *Cache) {
-		c.cleanupInterval = interval
-	}
-}
-
-// WithContext adds a custom context for the Cache.
-// If the context is canceled, the cleanup ticker will stop.
-func WithContext(ctx context.Context) Option {
-	return func(c *Cache) {
-		c.ctx = ctx
-	}
-}
-
 // Set will add an Item to the Cache with the default time-to-live.
-func (c *Cache) Set(key string, value any) {
+func (c *Cache[K, T]) Set(key K, value T) {
 	c.SetWithTTL(key, value, c.defaultTTL)
 }
 
 // SetWithTTL will add an Item to the Cache with the given time-to-live.
-func (c *Cache) SetWithTTL(key string, data any, ttl time.Duration) {
+func (c *Cache[K, T]) SetWithTTL(key K, data T, ttl time.Duration) {
 	c.mut.Lock()
-	c.data[key] = Item{Data: data, TTL: time.Now().Add(ttl).Unix()}
+	c.data[key] = Item[T]{Data: data, TTL: time.Now().Add(ttl).Unix()}
 	c.mut.Unlock()
 }
 
 // Get returns an Item and true if the Item was found in the Cache and has not been expired.
 // An empty Item and false is returned when the Item was not found or has been expired.
-func (c *Cache) Get(key string) (Item, bool) {
+func (c *Cache[K, T]) Get(key K) (Item[T], bool) {
 	c.mut.RLock()
 	item, ok := c.data[key]
 	c.mut.RUnlock()
 
 	if item.Expired() {
-		return Item{}, false
+		return Item[T]{}, false
 	}
 
 	return item, ok
 }
 
 // QueryFunc is a function to retrieve data which will be put into the Cache.
-type QueryFunc func(key string) (any, error)
+type QueryFunc[K comparable, T any] func(key K) (T, error)
 
 // Remember tries to get the Item from the Cache, if the Item is not found or expired QueryFunc is called
 // to retrieve the data from source and put it into the Cache.
-func (c *Cache) Remember(key string, query QueryFunc) (Item, error) {
+func (c *Cache[K, T]) Remember(key K, query QueryFunc[K, T]) (Item[T], error) {
 	return c.RememberWithTTL(key, query, c.defaultTTL)
 }
 
 // RememberWithTTL tries to get the Item from the Cache, if the Item is not found or expired QueryFunc is called
 // to retrieve the data from source and put it into the Cache with the given time-to-live.
-func (c *Cache) RememberWithTTL(key string, query QueryFunc, ttl time.Duration) (Item, error) {
+func (c *Cache[K, T]) RememberWithTTL(key K, query QueryFunc[K, T], ttl time.Duration) (Item[T], error) {
 	item, ok := c.Get(key)
 	if ok {
 		return item, nil
@@ -121,35 +113,35 @@ func (c *Cache) RememberWithTTL(key string, query QueryFunc, ttl time.Duration) 
 
 	data, err := query(key)
 	if err != nil {
-		return Item{}, fmt.Errorf("failed to query data: %w", err)
+		return Item[T]{}, fmt.Errorf("failed to query data: %w", err)
 	}
 
 	c.SetWithTTL(key, data, ttl)
 
-	return Item{Data: data, TTL: time.Now().Add(c.defaultTTL).Unix()}, nil
+	return Item[T]{Data: data, TTL: time.Now().Add(c.defaultTTL).Unix()}, nil
 }
 
 // Delete removes an Item from the Cache.
-func (c *Cache) Delete(key string) {
+func (c *Cache[K, T]) Delete(key K) {
 	c.mut.Lock()
 	delete(c.data, key)
 	c.mut.Unlock()
 }
 
 // Reset removes all Items from the Cache.
-func (c *Cache) Reset() {
+func (c *Cache[K, T]) Reset() {
 	c.mut.Lock()
-	c.data = make(map[string]Item)
+	c.data = make(map[K]Item[T])
 	c.mut.Unlock()
 }
 
 // Cancel will cancel the default Context of the Cache which stops the cleanup ticker.
 // This only has an effect when the Cache has not been created with a custom context.
-func (c *Cache) Cancel() {
+func (c *Cache[K, T]) Cancel() {
 	c.cancel()
 }
 
-func (c *Cache) cleanup() {
+func (c *Cache[K, T]) cleanup() {
 	ticker := time.NewTicker(c.cleanupInterval)
 
 	for {
@@ -158,7 +150,7 @@ func (c *Cache) cleanup() {
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			toBeDeleted := make([]string, 0)
+			toBeDeleted := make([]K, 0)
 
 			c.mut.RLock()
 			for key, item := range c.data {

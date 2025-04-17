@@ -13,7 +13,11 @@ const data = "bar"
 func TestCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cache := New(WithDefaultTTL(30*time.Second), WithCleanupInterval(4*time.Second), WithContext(ctx))
+	cache := NewCache[string, string](Config{
+		Context:         ctx,
+		DefaultTTL:      30 * time.Second,
+		CleanupInterval: 4 * time.Second,
+	})
 
 	cache.SetWithTTL(key, "bar", 2*time.Second)
 
@@ -22,13 +26,8 @@ func TestCache(t *testing.T) {
 		t.Error("item not found")
 	}
 
-	got, ok := item.Data.(string)
-	if !ok {
-		t.Error("item data is not a string")
-	}
-
-	if got != data {
-		t.Errorf("got %s, want %s", got, data)
+	if item.Data != data {
+		t.Errorf("got %s, want %s", item.Data, data)
 	}
 
 	// wait for cleanup
@@ -55,14 +54,14 @@ func TestCache(t *testing.T) {
 		t.Error("item still exists after delete all")
 	}
 
-	_, err := cache.Remember(key, func(key string) (any, error) {
-		return nil, errors.New("data not available")
+	_, err := cache.Remember(key, func(key string) (string, error) {
+		return "", errors.New("data not available")
 	})
 	if err == nil {
 		t.Error("QueryFunc failed but Remember did not return an error")
 	}
 
-	_, err = cache.Remember(key, func(key string) (any, error) {
+	_, err = cache.Remember(key, func(key string) (string, error) {
 		return data, nil
 	})
 	if err != nil {

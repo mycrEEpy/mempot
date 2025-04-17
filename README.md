@@ -5,7 +5,7 @@
 [![Go Build & Test](https://github.com/mycrEEpy/mempot/actions/workflows/build.yml/badge.svg)](https://github.com/mycrEEpy/mempot/actions/workflows/build.yml)
 [![Go Coverage](https://github.com/mycreepy/mempot/wiki/coverage.svg)](https://raw.githack.com/wiki/mycreepy/mempot/coverage.html)
 
-`mempot` is a small and easy memory cache for Go.
+`mempot` is a small and easy generic memory cache for Go.
 
 ## Usage
 
@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	cache := mempot.New()
+	cache := mempot.NewCache[string, string](mempot.Config{})
 	
 	cache.Set("foo", "bar")
 	
@@ -27,12 +27,7 @@ func main() {
 	if !ok {
 		panic("item not found or expired")
 	}
-
-	data, ok := item.Data.(string)
-	if !ok {
-		panic("item data is not a string")
-	}
 	
-	fmt.Println(data)
+	fmt.Println(item.Data)
 }
 ```
