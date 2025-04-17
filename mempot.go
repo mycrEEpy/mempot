@@ -38,6 +38,7 @@ func (i *Item[T]) Expired() bool {
 }
 
 // NewCache create a new Cache instance with K as key and T as data.
+// If the context is canceled, the Cache will stop the cleanup goroutine.
 func NewCache[K comparable, T any](ctx context.Context, cfg Config) *Cache[K, T] {
 	c := &Cache[K, T]{
 		data:            make(map[K]Item[T]),
