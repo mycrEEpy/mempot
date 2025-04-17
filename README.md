@@ -13,21 +13,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	
+
 	"github.com/mycreepy/mempot"
 )
 
 func main() {
-	cache := mempot.NewCache[string, string](mempot.Config{})
-	
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cache := mempot.NewCache[string, string](ctx, mempot.DefaultConfig)
+
 	cache.Set("foo", "bar")
-	
+
 	item, ok := cache.Get("foo")
 	if !ok {
 		panic("item not found or expired")
 	}
-	
+
 	fmt.Println(item.Data)
 }
 ```
