@@ -13,8 +13,7 @@ const data = "bar"
 func TestCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cache := NewCache[string, string](Config{
-		Context:         ctx,
+	cache := NewCache[string, string](ctx, Config{
 		DefaultTTL:      30 * time.Second,
 		CleanupInterval: 4 * time.Second,
 	})
@@ -69,7 +68,6 @@ func TestCache(t *testing.T) {
 	}
 
 	cancel()
-	cache.Cancel()
 
 	time.Sleep(1 * time.Second)
 }

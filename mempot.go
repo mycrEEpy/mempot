@@ -9,11 +9,9 @@ import (
 
 // Config allows to alter the configuration of a Cache.
 //
-// Context is by default an empty background context.
 // DefaultTTL is by default 15 minutes.
 // CleanupInterval is by default 5 minutes.
 type Config struct {
-	Context         context.Context
 	DefaultTTL      time.Duration
 	CleanupInterval time.Duration
 }
@@ -23,11 +21,9 @@ type Cache[K comparable, T any] struct {
 	mut  sync.RWMutex
 	data map[K]Item[T]
 
+	ctx             context.Context
 	defaultTTL      time.Duration
 	cleanupInterval time.Duration
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // Item is a unit of typed data which can be cached and has an expiration as Unix epoch.
@@ -42,17 +38,12 @@ func (i *Item[T]) Expired() bool {
 }
 
 // NewCache create a new Cache instance with K as key and T as data.
-func NewCache[K comparable, T any](cfg Config) *Cache[K, T] {
+func NewCache[K comparable, T any](ctx context.Context, cfg Config) *Cache[K, T] {
 	c := &Cache[K, T]{
 		data:            make(map[K]Item[T]),
+		ctx:             ctx,
 		defaultTTL:      time.Minute * 15,
 		cleanupInterval: time.Minute * 5,
-	}
-
-	c.ctx, c.cancel = context.WithCancel(context.Background())
-
-	if cfg.Context != nil {
-		c.ctx = cfg.Context
 	}
 
 	if cfg.DefaultTTL > 0 {
@@ -133,12 +124,6 @@ func (c *Cache[K, T]) Reset() {
 	c.mut.Lock()
 	c.data = make(map[K]Item[T])
 	c.mut.Unlock()
-}
-
-// Cancel will cancel the default Context of the Cache which stops the cleanup ticker.
-// This only has an effect when the Cache has not been created with a custom context.
-func (c *Cache[K, T]) Cancel() {
-	c.cancel()
 }
 
 func (c *Cache[K, T]) cleanup() {
