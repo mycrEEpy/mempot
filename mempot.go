@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// DefaultConfig contains all default values for a Cache.
+var DefaultConfig = Config{
+	DefaultTTL:      time.Minute * 15,
+	CleanupInterval: time.Minute * 5,
+}
+
 // Config allows to alter the configuration of a Cache.
 //
 // DefaultTTL is by default 15 minutes.
@@ -43,8 +49,8 @@ func NewCache[K comparable, T any](ctx context.Context, cfg Config) *Cache[K, T]
 	c := &Cache[K, T]{
 		data:            make(map[K]Item[T]),
 		ctx:             ctx,
-		defaultTTL:      time.Minute * 15,
-		cleanupInterval: time.Minute * 5,
+		defaultTTL:      DefaultConfig.DefaultTTL,
+		cleanupInterval: DefaultConfig.CleanupInterval,
 	}
 
 	if cfg.DefaultTTL > 0 {
