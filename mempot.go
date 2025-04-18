@@ -14,11 +14,17 @@ var DefaultConfig = Config{
 }
 
 // Config allows to alter the configuration of a Cache.
-//
-// DefaultTTL is by default 15 minutes.
-// CleanupInterval is by default 5 minutes.
 type Config struct {
-	DefaultTTL      time.Duration
+	// DefaultTTL is used by Cache.Set for the Item.TTL.
+	// If set to 0, the Item will not expire.
+	//
+	// Default: 15m
+	DefaultTTL time.Duration
+
+	// CleanupInterval is used for the Ticker in the cleanup goroutine.
+	// If set to 0, no cleanup goroutine will be created.
+	//
+	// Default: 5m
 	CleanupInterval time.Duration
 }
 
@@ -39,7 +45,19 @@ type Item[T any] struct {
 
 // Expired returns true if the data of the Item has expired.
 func (i *Item[T]) Expired() bool {
+	if i.TTL == 0 {
+		return false
+	}
+
 	return time.Now().Unix() > i.TTL
+}
+
+func newItem[T any](data T, ttl time.Duration) Item[T] {
+	if ttl == 0 {
+		return Item[T]{Data: data, TTL: 0}
+	}
+
+	return Item[T]{Data: data, TTL: time.Now().Add(ttl).Unix()}
 }
 
 // NewCache create a new Cache instance with K as key and T as data.
@@ -59,7 +77,9 @@ func NewCache[K comparable, T any](ctx context.Context, cfg Config) *Cache[K, T]
 		c.cfg.CleanupInterval = cfg.CleanupInterval
 	}
 
-	go c.cleanup()
+	if c.cfg.CleanupInterval > 0 {
+		go c.cleanup()
+	}
 
 	return c
 }
@@ -72,7 +92,7 @@ func (c *Cache[K, T]) Set(key K, value T) {
 // SetWithTTL will add an Item to the Cache with the given time-to-live.
 func (c *Cache[K, T]) SetWithTTL(key K, data T, ttl time.Duration) {
 	c.mut.Lock()
-	c.data[key] = Item[T]{Data: data, TTL: time.Now().Add(ttl).Unix()}
+	c.data[key] = newItem(data, ttl)
 	c.mut.Unlock()
 }
 
@@ -114,7 +134,7 @@ func (c *Cache[K, T]) RememberWithTTL(key K, query QueryFunc[K, T], ttl time.Dur
 
 	c.SetWithTTL(key, data, ttl)
 
-	return Item[T]{Data: data, TTL: time.Now().Add(c.cfg.DefaultTTL).Unix()}, nil
+	return newItem(data, ttl), nil
 }
 
 // Delete removes an Item from the Cache.
