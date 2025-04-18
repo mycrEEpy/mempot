@@ -18,7 +18,7 @@ func TestCache(t *testing.T) {
 		CleanupInterval: 4 * time.Second,
 	})
 
-	cache.SetWithTTL(key, "bar", 2*time.Second)
+	cache.SetWithTTL(key, "bar", 1*time.Second)
 
 	item, ok := cache.Get(key)
 	if !ok {
@@ -27,6 +27,13 @@ func TestCache(t *testing.T) {
 
 	if item.Data != data {
 		t.Errorf("got %s, want %s", item.Data, data)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	item, ok = cache.Get(key)
+	if ok {
+		t.Error("item should have expired")
 	}
 
 	// wait for cleanup
@@ -64,7 +71,23 @@ func TestCache(t *testing.T) {
 		return data, nil
 	})
 	if err != nil {
-		t.Errorf("failed to remember item: %s", err)
+		t.Errorf("failed to remember item first time: %s", err)
+	}
+
+	_, err = cache.Remember(key, func(key string) (string, error) {
+		return data, nil
+	})
+	if err != nil {
+		t.Errorf("failed to remember item second time: %s", err)
+	}
+
+	cache.SetWithTTL(key, data, 0)
+
+	time.Sleep(5 * time.Second)
+
+	_, ok = cache.Get(key)
+	if !ok {
+		t.Error("non expiring item not found")
 	}
 
 	cancel()
