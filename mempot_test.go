@@ -10,15 +10,22 @@ import (
 const key = "foo"
 const data = "bar"
 
-func TestCache(t *testing.T) {
+func setupCache(ttlSec, intervalSec int) (*Cache[string, string], context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cache := NewCache[string, string](ctx, Config{
-		DefaultTTL:      30 * time.Second,
-		CleanupInterval: 4 * time.Second,
+		DefaultTTL:      time.Second * time.Duration(ttlSec),
+		CleanupInterval: time.Second * time.Duration(intervalSec),
 	})
 
-	cache.SetWithTTL(key, "bar", 1*time.Second)
+	return cache, cancel
+}
+
+func TestCacheSetGet(t *testing.T) {
+	cache, cancel := setupCache(1, 1)
+	defer cancel()
+
+	cache.Set(key, data)
 
 	item, ok := cache.Get(key)
 	if !ok {
@@ -28,37 +35,60 @@ func TestCache(t *testing.T) {
 	if item.Data != data {
 		t.Errorf("got %s, want %s", item.Data, data)
 	}
+}
 
-	time.Sleep(2 * time.Second)
+func TestCacheExpire(t *testing.T) {
+	cache, cancel := setupCache(1, 1)
+	defer cancel()
 
-	item, ok = cache.Get(key)
+	cache.SetWithTTL(key, data, time.Millisecond*50)
+
+	time.Sleep(time.Millisecond * 100)
+
+	_, ok := cache.Get(key)
 	if ok {
 		t.Error("item should have expired")
 	}
 
 	// wait for cleanup
-	time.Sleep(6 * time.Second)
+	time.Sleep(time.Millisecond * 1100)
 
 	_, ok = cache.Get(key)
 	if ok {
 		t.Error("item still exists after cleanup")
 	}
+}
+
+func TestCacheDelete(t *testing.T) {
+	cache, cancel := setupCache(1, 1)
+	defer cancel()
 
 	cache.Set(key, data)
+
 	cache.Delete(key)
 
-	_, ok = cache.Get(key)
+	_, ok := cache.Get(key)
 	if ok {
 		t.Error("item still exists after delete")
 	}
+}
+
+func TestCacheReset(t *testing.T) {
+	cache, cancel := setupCache(1, 1)
+	defer cancel()
 
 	cache.Set(key, data)
 	cache.Reset()
 
-	_, ok = cache.Get(key)
+	_, ok := cache.Get(key)
 	if ok {
-		t.Error("item still exists after delete all")
+		t.Error("item still exists after reset")
 	}
+}
+
+func TestCacheRemember(t *testing.T) {
+	cache, cancel := setupCache(1, 1)
+	defer cancel()
 
 	_, err := cache.Remember(key, func(key string) (string, error) {
 		return "", errors.New("data not available")
@@ -80,17 +110,18 @@ func TestCache(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to remember item second time: %s", err)
 	}
+}
+
+func TestCacheNonExpiring(t *testing.T) {
+	cache, cancel := setupCache(1, 1)
+	defer cancel()
 
 	cache.SetWithTTL(key, data, 0)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(time.Millisecond * 1100)
 
-	_, ok = cache.Get(key)
+	_, ok := cache.Get(key)
 	if !ok {
 		t.Error("non expiring item not found")
 	}
-
-	cancel()
-
-	time.Sleep(1 * time.Second)
 }
