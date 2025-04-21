@@ -37,10 +37,14 @@ type Cache[K comparable, T any] struct {
 	cfg Config
 }
 
-// Item is a unit of typed data which can be cached and has an expiration as Unix epoch.
+// Item is a unit of typed data which can be cached and has an expiration as Unix time in milliseconds.
 type Item[T any] struct {
+	// Data holds the assigned data of the Item.
 	Data T
-	TTL  int64
+
+	// TTL is the expiration time as Unix time in milliseconds.
+	// If set to 0, the Item will not expire.
+	TTL int64
 }
 
 // Expired returns true if the data of the Item has expired.
@@ -49,7 +53,7 @@ func (i *Item[T]) Expired() bool {
 		return false
 	}
 
-	return time.Now().Unix() > i.TTL
+	return time.Now().UnixMilli() > i.TTL
 }
 
 func newItem[T any](data T, ttl time.Duration) Item[T] {
@@ -57,7 +61,7 @@ func newItem[T any](data T, ttl time.Duration) Item[T] {
 		return Item[T]{Data: data, TTL: 0}
 	}
 
-	return Item[T]{Data: data, TTL: time.Now().Add(ttl).Unix()}
+	return Item[T]{Data: data, TTL: time.Now().Add(ttl).UnixMilli()}
 }
 
 // NewCache create a new Cache instance with K as key and T as data.
