@@ -5,6 +5,8 @@
 [![Go Build & Test](https://github.com/mycrEEpy/mempot/actions/workflows/build.yml/badge.svg)](https://github.com/mycrEEpy/mempot/actions/workflows/build.yml)
 [![Go Coverage](https://github.com/mycreepy/mempot/wiki/coverage.svg)](https://raw.githack.com/wiki/mycreepy/mempot/coverage.html)
 
+<img src="https://github.com/user-attachments/assets/44aaa345-5d3e-44b4-803c-b6f06a631999" alt="mempot" width=20%>
+
 `mempot` is a small and easy generic memory cache for Go.
 
 ## Usage
